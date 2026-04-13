@@ -4,6 +4,9 @@ import { swagger } from '@elysiajs/swagger'
 import { authRoutes } from './api/auth'
 import { userRoutes } from './api/users'
 import { projectRoutes } from './api/projects'
+import { bookingRoutes } from './api/bookings'
+import { financeRoutes } from './api/finances'
+import { dashboardRoutes } from './api/dashboard'
 
 const app = new Elysia()
     .use(cors({
@@ -16,6 +19,9 @@ const app = new Elysia()
             .use(authRoutes)
             .use(userRoutes)
             .use(projectRoutes)
+            .use(bookingRoutes)
+            .use(financeRoutes)
+            .use(dashboardRoutes)
     )
     .get('/', () => ({
         message: 'Villa Management System API',

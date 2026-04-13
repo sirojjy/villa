@@ -7,6 +7,7 @@ export async function apiRequest<T>(
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
