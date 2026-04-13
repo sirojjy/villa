@@ -16,7 +16,8 @@ const app = new Elysia()
     }))
     .use(staticPlugin({
         assets: 'uploads',
-        prefix: '/uploads'
+        prefix: '/uploads',
+        alwaysStatic: false
     }))
     .use(swagger())
     .group('/api', app => 
