@@ -1,6 +1,5 @@
 import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
-import { cookie } from '@elysiajs/cookie';
 import { db } from '../db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -12,10 +11,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       secret: process.env.JWT_SECRET || 'sv-villa-secret-key-2026',
     })
   )
-  .use(cookie())
   .post(
     '/login',
-    async ({ body, jwt, setCookie, set }) => {
+    async ({ body, jwt, cookie: { auth_token }, set }) => {
       const { username, password } = body;
 
       const user = await db.query.users.findFirst({
@@ -38,7 +36,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         role: user.role,
       });
 
-      setCookie('auth_token', token, {
+      auth_token.set({
+        value: token,
         httpOnly: true,
         maxAge: 8 * 60 * 60, // 8 hours
         path: '/',
@@ -64,21 +63,17 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       }),
     }
   )
-  .post('/logout', ({ setCookie }) => {
-    setCookie('auth_token', '', {
-      httpOnly: true,
-      maxAge: 0,
-      path: '/',
-    });
+  .post('/logout', ({ cookie: { auth_token } }) => {
+    auth_token.remove();
     return { success: true, message: 'Logged out successfully' };
   })
   .get('/me', async ({ jwt, cookie: { auth_token }, set }) => {
-    if (!auth_token) {
+    if (!auth_token.value) {
       set.status = 401;
       return { success: false, message: 'Unauthorized' };
     }
 
-    const payload = await jwt.verify(auth_token);
+    const payload = await jwt.verify(auth_token.value);
     if (!payload) {
       set.status = 401;
       return { success: false, message: 'Invalid token' };

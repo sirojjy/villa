@@ -3,7 +3,6 @@ import { db } from '../db';
 import { users, userProjects } from '../db/schema';
 import { eq, or, like } from 'drizzle-orm';
 import { jwt } from '@elysiajs/jwt';
-import { cookie } from '@elysiajs/cookie';
 
 export const userRoutes = new Elysia({ prefix: '/users' })
   .use(
@@ -12,13 +11,12 @@ export const userRoutes = new Elysia({ prefix: '/users' })
       secret: process.env.JWT_SECRET || 'sv-villa-secret-key-2026',
     })
   )
-  .use(cookie())
   .derive(async ({ jwt, cookie: { auth_token }, set }) => {
-    if (!auth_token) {
+    if (!auth_token.value) {
       set.status = 401;
       return { user: null };
     }
-    const payload = await jwt.verify(auth_token);
+    const payload = await jwt.verify(auth_token.value);
     if (!payload) {
       set.status = 401;
       return { user: null };

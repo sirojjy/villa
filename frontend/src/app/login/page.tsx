@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { LogIn, User, Lock, AlertCircle, Loader2 } from 'lucide-react';
@@ -18,9 +18,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
   const router = useRouter();
-  const setUser = useAuthStore((state) => state.setUser);
+  const { user, setUser } = useAuthStore();
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    useAuthStore.persist.onFinishHydration(() => setHasHydrated(true));
+    setHasHydrated(useAuthStore.persist.hasHydrated());
+  }, []);
+
+  useEffect(() => {
+    if (hasHydrated && user) {
+      router.replace('/dashboard');
+    }
+  }, [hasHydrated, user, router]);
+
+  if (!hasHydrated || user) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+      </div>
+    );
+  }
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

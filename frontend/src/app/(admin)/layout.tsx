@@ -11,25 +11,31 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user } = useAuthStore();
   const router = useRouter();
-  const [isMounted, setIsMounted] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
-    // Basic auth check
-    if (!isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, router]);
+    useAuthStore.persist.onFinishHydration(() => setHasHydrated(true));
+    setHasHydrated(useAuthStore.persist.hasHydrated());
+  }, []);
 
-  if (!isMounted || !isAuthenticated) {
+  useEffect(() => {
+    if (hasHydrated && !user) {
+      router.replace('/login');
+    }
+  }, [hasHydrated, user, router]);
+
+  if (!hasHydrated) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
         <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
       </div>
     );
   }
+
+  if (!user) return null;
+
 
   return (
     <div className="min-h-screen bg-slate-950 flex">
