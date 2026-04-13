@@ -347,6 +347,11 @@ export default function UnitDetailPage() {
                     {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm Check-In'}
                   </button>
                 </div>
+             </form>
+          </div>
+        </div>
+      )}
+
       {/* Check-Out Confirmation Modal */}
       {isCheckOutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
