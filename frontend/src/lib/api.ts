@@ -5,13 +5,20 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<{ success: boolean; data?: T; message?: string; error?: string }> {
   try {
+    const isFormData = options.body instanceof FormData;
+    
+    const headers: Record<string, string> = {
+      ...((options.headers as Record<string, string>) || {}),
+    };
+
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     });
 
     const result = await res.json();
@@ -39,13 +46,13 @@ export const api = {
     apiRequest<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: JSON.stringify(body),
+      body: body instanceof FormData ? body : JSON.stringify(body),
     }),
   put: <T>(endpoint: string, body: any, options?: RequestInit) =>
     apiRequest<T>(endpoint, {
       ...options,
       method: 'PUT',
-      body: JSON.stringify(body),
+      body: body instanceof FormData ? body : JSON.stringify(body),
     }),
   delete: <T>(endpoint: string, options?: RequestInit) =>
     apiRequest<T>(endpoint, { ...options, method: 'DELETE' }),

@@ -72,15 +72,32 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
         return { success: false, message: 'Forbidden' };
       }
 
-      const { projectId, type, category, description, amount, date } = body;
+      const { projectId, type, category, description, amount, date, attachment } = body;
+
+      let attachmentUrl = null;
+      if (attachment) {
+        const subFolder = type === 'income' ? 'income' : 'expense';
+        const fileName = `${Date.now()}-${attachment.name}`;
+        const dir = `uploads/finances/${subFolder}`;
+        const path = `${dir}/${fileName}`;
+        
+        const fs = require('fs');
+        if (!fs.existsSync(dir)){
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        await Bun.write(path, attachment);
+        attachmentUrl = `/uploads/finances/${subFolder}/${fileName}`;
+      }
 
       const [newRecord] = await db.insert(finances).values({
-        projectId,
+        projectId: parseInt(projectId as any),
         type: type as any,
         category,
-        description,
+        description: description || null,
         amount: amount.toString() as any,
         date: date ? new Date(date) : new Date(),
+        attachmentUrl,
       });
 
       return { 
@@ -91,12 +108,13 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     },
     {
       body: t.Object({
-        projectId: t.Number(),
-        type: t.Enum({ income: 'income', expense: 'expense' }),
+        projectId: t.Any(),
+        type: t.String(),
         category: t.String(),
         description: t.Optional(t.String()),
-        amount: t.Number(),
+        amount: t.Any(),
         date: t.Optional(t.String()),
+        attachment: t.Optional(t.File()),
       }),
     }
   );

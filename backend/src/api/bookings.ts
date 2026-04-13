@@ -99,12 +99,13 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
         checkIn, 
         checkOut, 
         method, 
-        total 
+        total,
+        attachment 
       } = body;
 
       // 1. Check if unit is ready
       const unit = await db.query.units.findFirst({
-        where: eq(units.id, unitId),
+        where: eq(units.id, parseInt(unitId as any)),
       });
 
       if (!unit || unit.status !== 'ready') {
@@ -112,11 +113,25 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
         return { success: false, message: 'Unit is not available for check-in' };
       }
 
+      let attachmentUrl = null;
+      if (attachment) {
+        const fileName = `${Date.now()}-${attachment.name}`;
+        const path = `uploads/bookings/${fileName}`;
+        // Ensure directory exists
+        const dir = 'uploads/bookings';
+        const fs = require('fs');
+        if (!fs.existsSync(dir)){
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        await Bun.write(path, attachment);
+        attachmentUrl = `/uploads/bookings/${fileName}`;
+      }
+
       // 2. Wrap in a transaction
       return await db.transaction(async (tx) => {
         // Create booking
         const [newBooking] = await tx.insert(bookings).values({
-          unitId,
+          unitId: parseInt(unitId as any),
           guestName,
           contact,
           checkIn: new Date(checkIn),
@@ -124,12 +139,13 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
           method: method as any,
           total: total.toString() as any,
           status: 'checked_in',
+          attachmentUrl,
         });
 
         // Update unit status
         await tx.update(units)
           .set({ status: 'occupied' })
-          .where(eq(units.id, unitId));
+          .where(eq(units.id, parseInt(unitId as any)));
 
         // Create financial record (Income)
         await tx.insert(finances).values({
@@ -139,6 +155,7 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
           description: `Booking Check-in: ${guestName} (Unit ${unit.name})`,
           amount: total.toString() as any,
           date: new Date(),
+          attachmentUrl,
         });
 
         return { 
@@ -150,13 +167,14 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
     },
     {
       body: t.Object({
-        unitId: t.Number(),
+        unitId: t.Any(), // multipart might send as string
         guestName: t.String(),
         contact: t.String(),
         checkIn: t.String(),
         checkOut: t.String(),
         method: t.String(),
-        total: t.Number(),
+        total: t.Any(),
+        attachment: t.Optional(t.File()),
       }),
     }
   )
