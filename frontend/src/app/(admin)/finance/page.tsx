@@ -36,9 +36,10 @@ export default function FinancePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Form State for Expense
+  // Form State for Transaction
   const [formData, setFormData] = useState({
     projectId: 0,
+    type: 'expense' as 'income' | 'expense',
     category: '',
     description: '',
     amount: 0,
@@ -55,7 +56,35 @@ export default function FinancePage() {
   const transactions = financeResponse?.data || [];
   const summary = financeResponse?.summary || { total_income: 0, total_expense: 0 };
 
-  const handleCreateExpense = async (e: React.FormEvent) => {
+  const incomeCategories = [
+    'Booking (Manual)',
+    'F&B / Minibar',
+    'Extra Bed & Amenities',
+    'Denda / Ganti Rugi',
+    'Others'
+  ];
+
+  const expenseCategories = [
+    'Utilities (Listrik/Air)',
+    'Maintenance Unit',
+    'Salary (Gaji Staf)',
+    'Marketing / Sales',
+    'Taxes / Pajak',
+    'Consumables (Sabun/Kopi)',
+    'Others'
+  ];
+
+  const handleOpenModal = (type: 'income' | 'expense' = 'expense') => {
+    setFormData({
+      ...formData,
+      type,
+      category: '',
+      amount: 0
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCreateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.projectId === 0) {
       setError('Please select a villa project');
@@ -66,23 +95,13 @@ export default function FinancePage() {
     setError('');
 
     try {
-      const res = await api.post('/finances', {
-        ...formData,
-        type: 'expense'
-      });
+      const res = await api.post('/finances', formData);
 
       if (res.success) {
         mutate((key) => typeof key === 'string' && key.startsWith('/finances'));
         setIsModalOpen(false);
-        setFormData({
-          projectId: 0,
-          category: '',
-          description: '',
-          amount: 0,
-          date: new Date().toISOString().split('T')[0]
-        });
       } else {
-        setError(res.error || 'Failed to record expense');
+        setError(res.error || 'Failed to record transaction');
       }
     } catch (err) {
       setError('An error occurred');
@@ -96,15 +115,24 @@ export default function FinancePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight">Financial Administration</h1>
-          <p className="text-slate-400 mt-2">Track income from bookings and manage operational expenses.</p>
+          <p className="text-slate-400 mt-2">Track income from bookings and manage operational transactions.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 group self-start md:self-center"
-        >
-          <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-          Record Expense
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => handleOpenModal('income')}
+            className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-6 py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 group self-start md:self-center"
+          >
+            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+            Add Income
+          </button>
+          <button 
+            onClick={() => handleOpenModal('expense')}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 group self-start md:self-center"
+          >
+            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+            Add Expense
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -208,15 +236,15 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* Record Expense Modal */}
+      {/* Record Transaction Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
           <div className="relative bg-slate-900 border border-slate-800 w-full max-w-xl rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
             <div className="p-8 border-b border-slate-800 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">Record Expense</h2>
-                <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-bold">New Operational Outflow</p>
+                <h2 className="text-2xl font-bold text-white">Record Transaction</h2>
+                <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-bold">New Cash Flow Entry</p>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
@@ -227,13 +255,39 @@ export default function FinancePage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateExpense} className="p-8 space-y-6">
+            <form onSubmit={handleCreateTransaction} className="p-8 space-y-6">
               {error && (
                  <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl flex items-center gap-3 text-sm">
                     <AlertCircle className="w-5 h-5 flex-shrink-0" />
                     <span>{error}</span>
                  </div>
               )}
+
+              {/* Type Toggle */}
+              <div className="flex p-1.5 bg-slate-950 border border-slate-800 rounded-2xl gap-1">
+                 <button
+                  type="button"
+                  onClick={() => setFormData({...formData, type: 'income'})}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all text-sm",
+                    formData.type === 'income' ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/10" : "text-slate-500 hover:text-slate-300"
+                  )}
+                 >
+                  <ArrowUpRight className="w-4 h-4" />
+                  Income
+                 </button>
+                 <button
+                  type="button"
+                  onClick={() => setFormData({...formData, type: 'expense'})}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all text-sm",
+                    formData.type === 'expense' ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/10" : "text-slate-500 hover:text-slate-300"
+                  )}
+                 >
+                  <ArrowDownLeft className="w-4 h-4" />
+                  Expense
+                 </button>
+              </div>
 
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Villa Project</label>
@@ -263,12 +317,11 @@ export default function FinancePage() {
                       onChange={e => setFormData({...formData, category: e.target.value})}
                     >
                       <option value="">Select Category...</option>
-                      <option value="Utilities">Utilities (Listrik/Air)</option>
-                      <option value="Maintenance">Maintenance Unit</option>
-                      <option value="Salary">Salary (Gaji Staf)</option>
-                      <option value="Marketing">Marketing/Sales</option>
-                      <option value="Taxes">Taxes/Pajak</option>
-                      <option value="Other">Other Expenses</option>
+                      {formData.type === 'income' ? (
+                        incomeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                      ) : (
+                        expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                      )}
                     </select>
                   </div>
                 </div>
@@ -289,7 +342,10 @@ export default function FinancePage() {
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Amount (IDR)</label>
                 <div className="relative group">
-                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                  <DollarSign className={cn(
+                    "absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
+                    formData.type === 'income' ? "text-emerald-500" : "text-amber-500"
+                  )} />
                   <input 
                     required 
                     type="number" 
@@ -324,9 +380,13 @@ export default function FinancePage() {
                  <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+                  className={cn(
+                    "flex-1 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2",
+                    formData.type === 'income' ? "bg-emerald-500 hover:bg-emerald-600 text-slate-950" : "bg-amber-500 hover:bg-amber-600 text-slate-950",
+                    "disabled:opacity-50"
+                  )}
                  >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm Payment'}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : `Confirm ${formData.type === 'income' ? 'Income' : 'Payment'}`}
                  </button>
               </div>
             </form>
