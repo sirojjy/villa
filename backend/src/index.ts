@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
+import { staticPlugin } from '@elysiajs/static'
 import { authRoutes } from './api/auth'
 import { userRoutes } from './api/users'
 import { projectRoutes } from './api/projects'
@@ -12,6 +13,10 @@ const app = new Elysia()
     .use(cors({
         origin: true,
         credentials: true
+    }))
+    .use(staticPlugin({
+        assets: 'uploads',
+        prefix: '/uploads'
     }))
     .use(swagger())
     .group('/api', app => 

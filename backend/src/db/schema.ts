@@ -48,6 +48,7 @@ export const bookings = mysqlTable('bookings', {
   method: mysqlEnum('method', ['tiket.com', 'traveloka', 'agoda', 'whatsapp', 'on the spot', 'criips', 'others']).notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).notNull(),
   status: mysqlEnum('status', ['checked_in', 'checked_out', 'upcoming']).notNull().default('upcoming'),
+  attachmentUrl: varchar('attachment_url', { length: 500 }),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -59,6 +60,7 @@ export const finances = mysqlTable('finances', {
   description: text('description'),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   date: timestamp('date').notNull().defaultNow(),
+  attachmentUrl: varchar('attachment_url', { length: 500 }),
 });
 
 export const reviews = mysqlTable('reviews', {

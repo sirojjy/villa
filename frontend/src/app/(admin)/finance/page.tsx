@@ -95,7 +95,20 @@ export default function FinancePage() {
     setError('');
 
     try {
-      const res = await api.post('/finances', formData);
+      const body = new FormData();
+      body.append('projectId', formData.projectId.toString());
+      body.append('type', formData.type);
+      body.append('category', formData.category);
+      body.append('description', formData.description);
+      body.append('amount', formData.amount.toString());
+      body.append('date', formData.date);
+
+      const fileInput = document.getElementById('transaction-attachment') as HTMLInputElement;
+      if (fileInput?.files?.[0]) {
+        body.append('attachment', fileInput.files[0]);
+      }
+
+      const res = await api.post('/finances', body);
 
       if (res.success) {
         mutate((key) => typeof key === 'string' && key.startsWith('/finances'));
@@ -228,6 +241,16 @@ export default function FinancePage() {
                       {t.type === 'income' ? '+' : '-'} Rp {parseFloat(t.amount).toLocaleString('id-ID')}
                       {t.type === 'income' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
                     </div>
+                    {t.attachmentUrl && (
+                      <a 
+                        href={`http://localhost:3000${t.attachmentUrl}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-slate-500 hover:text-amber-500 underline uppercase tracking-tighter mt-1 block"
+                      >
+                        View Attachment
+                      </a>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -366,6 +389,18 @@ export default function FinancePage() {
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Receipt/Invoice (Optional)</label>
+                <div className="relative group">
+                  <input 
+                    id="transaction-attachment"
+                    type="file" 
+                    accept="image/*,application/pdf"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-slate-400 text-xs focus:outline-none focus:border-amber-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-extrabold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 transition-all"
+                  />
+                </div>
               </div>
 
               <div className="pt-4 flex gap-4">

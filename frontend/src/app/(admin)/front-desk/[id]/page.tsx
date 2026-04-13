@@ -67,10 +67,21 @@ export default function UnitDetailPage() {
     setError('');
 
     try {
-      const res = await api.post('/bookings/checkin', {
-        unitId: selectedUnit.id,
-        ...formData
-      });
+      const body = new FormData();
+      body.append('unitId', selectedUnit.id.toString());
+      body.append('guestName', formData.guestName);
+      body.append('contact', formData.contact);
+      body.append('checkIn', formData.checkIn);
+      body.append('checkOut', formData.checkOut);
+      body.append('method', formData.method);
+      body.append('total', formData.total.toString());
+      
+      const fileInput = document.getElementById('checkin-attachment') as HTMLInputElement;
+      if (fileInput?.files?.[0]) {
+        body.append('attachment', fileInput.files[0]);
+      }
+
+      const res = await api.post('/bookings/checkin', body);
 
       if (res.success) {
         mutate(`/projects/${id}/units`);
@@ -331,6 +342,18 @@ export default function UnitDetailPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Identity/Document (Optional)</label>
+                  <div className="relative group">
+                    <input 
+                      id="checkin-attachment"
+                      type="file" 
+                      accept="image/*,application/pdf"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-slate-400 text-xs focus:outline-none focus:border-amber-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-extrabold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 transition-all"
+                    />
+                  </div>
+                </div>
+
                 <div className="pt-8 flex gap-4">
                   <button 
                     type="button" 
@@ -367,14 +390,26 @@ export default function UnitDetailPage() {
 
              <div className="p-8 space-y-6">
                 <div className="bg-slate-950/50 border border-slate-800 p-6 rounded-3xl space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-amber-500">
-                      <User className="w-6 h-6" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-amber-500">
+                        <User className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Guest Name</p>
+                        <p className="text-xl font-bold text-white leading-none">{activeBooking?.guestName}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Guest Name</p>
-                      <p className="text-xl font-bold text-white leading-none">{activeBooking?.guestName}</p>
-                    </div>
+                    {activeBooking?.attachmentUrl && (
+                      <a 
+                        href={`http://localhost:3000${activeBooking.attachmentUrl}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 bg-slate-800 hover:bg-slate-700 text-amber-500 rounded-2xl border border-slate-700 transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                      >
+                         View ID
+                      </a>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/50">
