@@ -1,8 +1,9 @@
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { bookings, units, finances } from '../db/schema';
-import { eq, desc, and, or, like, sql } from 'drizzle-orm';
+import { eq, desc, and, or, like, sql, inArray } from 'drizzle-orm';
 import { jwt } from '@elysiajs/jwt';
+import { getRBACContext, type UserPayload } from '../middleware/rbac';
 
 export const bookingRoutes = new Elysia({ prefix: '/bookings' })
   .use(
@@ -22,7 +23,7 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
       return { success: false, message: 'Unauthorized' };
     }
   })
-  .get('/', async ({ query }) => {
+  .get('/', async ({ query, user }) => {
     const { 
       search, 
       status, 
@@ -34,8 +35,31 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
     } = query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // Initial query
-    const baseQuery = db.query.bookings.findMany({
+    const rbac = await getRBACContext(user as UserPayload);
+
+    // Determine allowed unit IDs
+    let allowedUnitIds: number[] | null = null;
+    if (rbac.allowedProjectIds !== null) {
+      // admin_villa: get units from allowed projects
+      const projectUnits = await db.query.units.findMany({
+        where: and(
+          inArray(units.projectId, rbac.allowedProjectIds.length > 0 ? rbac.allowedProjectIds : [0]),
+          eq(units.isDeleted, false)
+        ),
+      });
+      allowedUnitIds = projectUnits.map(u => u.id);
+    } else if (rbac.allowedUnitIds !== null) {
+      // investor: directly assigned units
+      allowedUnitIds = rbac.allowedUnitIds;
+    }
+
+    // If restricted but has no units, return empty
+    if (allowedUnitIds !== null && allowedUnitIds.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    // Fetch bookings
+    const allData = await db.query.bookings.findMany({
       with: {
         unit: {
           with: {
@@ -46,15 +70,8 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
       limit: parseInt(limit),
       offset: offset,
       orderBy: [desc(bookings.createdAt)],
+      ...(allowedUnitIds !== null ? { where: inArray(bookings.unitId, allowedUnitIds) } : {}),
     });
-
-    // In a real scenario with more complex filters, we'd use the drizzle-orm/sql builder more heavily
-    // For now, let's fetch and filter if project_id is present, or just return all
-    // Better implementation would be joining tables explicitly if filtering by project metadata
-    
-    // For MVP, we'll fetch then filter for the specific project if needed
-    // In production, we should use joined queries with .where()
-    const allData = await baseQuery;
     
     let filtered = allData;
     if (project_id) {
@@ -72,11 +89,28 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
 
     return { success: true, data: filtered };
   })
-  .get('/active', async ({ query, set }) => {
+  .get('/active', async ({ query, user, set }) => {
     const { unit_id } = query;
     if (!unit_id) {
       set.status = 400;
       return { success: false, message: 'unit_id is required' };
+    }
+
+    // RBAC check: verify user has access to this unit
+    const rbac = await getRBACContext(user as UserPayload);
+    const unitData = await db.query.units.findFirst({
+      where: eq(units.id, parseInt(unit_id)),
+    });
+
+    if (unitData) {
+      if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(unitData.projectId)) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden' };
+      }
+      if (rbac.allowedUnitIds !== null && !rbac.allowedUnitIds.includes(unitData.id)) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden' };
+      }
     }
 
     const booking = await db.query.bookings.findFirst({
@@ -91,7 +125,7 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
   })
   .post(
     '/checkin',
-    async ({ body, set }) => {
+    async ({ body, user, set }) => {
       const { 
         unitId, 
         guestName, 
@@ -103,6 +137,12 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
         attachment 
       } = body;
 
+      // Investors cannot checkin
+      if ((user as UserPayload).role === 'investor') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Investors cannot perform check-in' };
+      }
+
       // 1. Check if unit is ready
       const unit = await db.query.units.findFirst({
         where: eq(units.id, parseInt(unitId as any)),
@@ -111,6 +151,13 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
       if (!unit || unit.status !== 'ready') {
         set.status = 400;
         return { success: false, message: 'Unit is not available for check-in' };
+      }
+
+      // RBAC check for admin_villa
+      const rbac = await getRBACContext(user as UserPayload);
+      if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(unit.projectId)) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Unit is not in your assigned project' };
       }
 
       let attachmentUrl = null;
@@ -180,7 +227,13 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
   )
   .put(
     '/:id/checkout',
-    async ({ params: { id }, set }) => {
+    async ({ params: { id }, user, set }) => {
+      // Investors cannot checkout
+      if ((user as UserPayload).role === 'investor') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Investors cannot perform check-out' };
+      }
+
       const bookingId = parseInt(id);
 
       const booking = await db.query.bookings.findFirst({
@@ -193,6 +246,13 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
       if (!booking || booking.status !== 'checked_in') {
         set.status = 400;
         return { success: false, message: 'Booking is not in a check-in state' };
+      }
+
+      // RBAC check for admin_villa
+      const rbac = await getRBACContext(user as UserPayload);
+      if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(booking.unit.projectId)) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden' };
       }
 
       return await db.transaction(async (tx) => {
@@ -209,4 +269,91 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
         return { success: true, message: 'Guest checked out successfully' };
       });
     }
-  );
+  )
+  .put('/:id', async ({ params: { id }, body, user, set }) => {
+    // Investors cannot edit bookings
+    if ((user as UserPayload).role === 'investor') {
+      set.status = 403;
+      return { success: false, message: 'Forbidden' };
+    }
+
+    const bookingId = parseInt(id);
+    const { guestName, contact, checkIn, checkOut, method, total, attachment } = body;
+
+    const existing = await db.query.bookings.findFirst({
+        where: eq(bookings.id, bookingId),
+        with: { unit: true }
+    });
+
+    if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Booking not found' };
+    }
+
+    // RBAC check for admin_villa
+    const rbac = await getRBACContext(user as UserPayload);
+    if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(existing.unit.projectId)) {
+      set.status = 403;
+      return { success: false, message: 'Forbidden' };
+    }
+
+    let attachmentUrl = existing.attachmentUrl;
+    if (attachment) {
+        const fileName = `${Date.now()}-${attachment.name}`;
+        const path = `uploads/bookings/${fileName}`;
+        const dir = 'uploads/bookings';
+        const fs = require('fs');
+        if (!fs.existsSync(dir)){
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        await Bun.write(path, attachment);
+        attachmentUrl = `/uploads/bookings/${fileName}`;
+    }
+
+    await db.update(bookings)
+        .set({
+            guestName: guestName || undefined,
+            contact: contact || undefined,
+            checkIn: checkIn ? new Date(checkIn) : undefined,
+            checkOut: checkOut ? new Date(checkOut) : undefined,
+            method: method as any,
+            total: total?.toString() as any,
+            attachmentUrl
+        })
+        .where(eq(bookings.id, bookingId));
+
+    return { success: true, message: 'Booking updated successfully' };
+  }, {
+    body: t.Object({
+      guestName: t.Optional(t.String()),
+      contact: t.Optional(t.String()),
+      checkIn: t.Optional(t.String()),
+      checkOut: t.Optional(t.String()),
+      method: t.Optional(t.String()),
+      total: t.Optional(t.Any()),
+      attachment: t.Optional(t.File()),
+    })
+  })
+  .delete('/:id', async ({ params: { id }, user, set }) => {
+    // Investors cannot delete bookings
+    if ((user as UserPayload).role === 'investor') {
+      set.status = 403;
+      return { success: false, message: 'Forbidden' };
+    }
+
+    const existing = await db.query.bookings.findFirst({
+      where: eq(bookings.id, parseInt(id)),
+      with: { unit: true }
+    });
+
+    if (existing) {
+      const rbac = await getRBACContext(user as UserPayload);
+      if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(existing.unit.projectId)) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden' };
+      }
+    }
+
+    await db.delete(bookings).where(eq(bookings.id, parseInt(id)));
+    return { success: true, message: 'Booking deleted successfully' };
+  });

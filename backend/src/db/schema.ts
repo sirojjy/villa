@@ -1,4 +1,4 @@
-import { mysqlTable, serial, varchar, text, timestamp, decimal, int, mysqlEnum } from 'drizzle-orm/mysql-core';
+import { mysqlTable, serial, varchar, text, timestamp, decimal, int, mysqlEnum, boolean } from 'drizzle-orm/mysql-core';
 import { relations } from 'drizzle-orm';
 
 export const users = mysqlTable('users', {
@@ -20,6 +20,7 @@ export const projects = mysqlTable('projects', {
   facilities: text('facilities'),
   basePrice: decimal('base_price', { precision: 12, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow(),
+  isDeleted: boolean('is_deleted').default(false),
 });
 
 export const userProjects = mysqlTable('user_projects', {
@@ -29,6 +30,13 @@ export const userProjects = mysqlTable('user_projects', {
   pk: [t.userId, t.projectId],
 }));
 
+export const userUnits = mysqlTable('user_units', {
+  userId: int('user_id').notNull(),
+  unitId: int('unit_id').notNull(),
+}, (t) => ({
+  pk: [t.userId, t.unitId],
+}));
+
 export const units = mysqlTable('units', {
   id: serial('id').primaryKey(),
   projectId: int('project_id').notNull(),
@@ -36,6 +44,7 @@ export const units = mysqlTable('units', {
   type: mysqlEnum('type', ['luxury', 'middle', 'low']).notNull(),
   pricePerNight: decimal('price_per_night', { precision: 12, scale: 2 }).notNull(),
   status: mysqlEnum('status', ['ready', 'occupied', 'maintenance']).notNull().default('ready'),
+  isDeleted: boolean('is_deleted').default(false),
 });
 
 export const bookings = mysqlTable('bookings', {
@@ -45,7 +54,7 @@ export const bookings = mysqlTable('bookings', {
   contact: varchar('contact', { length: 50 }).notNull(),
   checkIn: timestamp('check_in').notNull(),
   checkOut: timestamp('check_out').notNull(),
-  method: mysqlEnum('method', ['tiket.com', 'traveloka', 'agoda', 'whatsapp', 'on the spot', 'criips', 'others']).notNull(),
+  method: mysqlEnum('method', ['booking.com', 'agoda', 'traveloka', 'tiket.com', 'direct payment', 'whatsapp', 'sosial media', 'others']).notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).notNull(),
   status: mysqlEnum('status', ['checked_in', 'checked_out', 'upcoming']).notNull().default('upcoming'),
   attachmentUrl: varchar('attachment_url', { length: 500 }),
@@ -73,6 +82,7 @@ export const reviews = mysqlTable('reviews', {
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   userProjects: many(userProjects),
+  userUnits: many(userUnits),
 }));
 
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -86,9 +96,15 @@ export const userProjectsRelations = relations(userProjects, ({ one }) => ({
   project: one(projects, { fields: [userProjects.projectId], references: [projects.id] }),
 }));
 
+export const userUnitsRelations = relations(userUnits, ({ one }) => ({
+  user: one(users, { fields: [userUnits.userId], references: [users.id] }),
+  unit: one(units, { fields: [userUnits.unitId], references: [units.id] }),
+}));
+
 export const unitsRelations = relations(units, ({ one, many }) => ({
   project: one(projects, { fields: [units.projectId], references: [projects.id] }),
   bookings: many(bookings),
+  userUnits: many(userUnits),
 }));
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({

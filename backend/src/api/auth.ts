@@ -18,6 +18,10 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
       const user = await db.query.users.findFirst({
         where: eq(users.username, username),
+        with: {
+          userProjects: true,
+          userUnits: true,
+        }
       });
 
       if (!user) {
@@ -53,6 +57,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
           name: user.name,
           username: user.username,
           role: user.role,
+          projectIds: user.userProjects.map(p => p.projectId),
+          unitIds: user.userUnits.map(u => u.unitId),
         },
       };
     },
@@ -81,6 +87,10 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
     const user = await db.query.users.findFirst({
       where: eq(users.id, payload.id as number),
+      with: {
+        userProjects: true,
+        userUnits: true,
+      }
     });
 
     if (!user) {
@@ -95,6 +105,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         name: user.name,
         username: user.username,
         role: user.role,
+        projectIds: user.userProjects.map(p => p.projectId),
+        unitIds: user.userUnits.map(u => u.unitId),
       },
     };
   });

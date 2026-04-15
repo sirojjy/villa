@@ -1,8 +1,9 @@
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { projects, units } from '../db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and, inArray } from 'drizzle-orm';
 import { jwt } from '@elysiajs/jwt';
+import { getRBACContext, type UserPayload } from '../middleware/rbac';
 
 export const projectRoutes = new Elysia({ prefix: '/projects' })
   .use(
@@ -22,13 +23,67 @@ export const projectRoutes = new Elysia({ prefix: '/projects' })
       return { success: false, message: 'Unauthorized' };
     }
   })
-  .get('/', async () => {
+  .get('/', async ({ user }) => {
+    const rbac = await getRBACContext(user as UserPayload);
+
     // Get all projects with unit counts (Ready/Occupied/Maintenance)
-    const data = await db.query.projects.findMany({
-      with: {
-        units: true
+    let data;
+    if (rbac.allowedProjectIds !== null) {
+      if (rbac.allowedProjectIds.length === 0) {
+        return { success: true, data: [] };
       }
-    });
+      data = await db.query.projects.findMany({
+        where: and(
+          eq(projects.isDeleted, false),
+          inArray(projects.id, rbac.allowedProjectIds)
+        ),
+        with: {
+          units: {
+            where: eq(units.isDeleted, false)
+          }
+        }
+      });
+    } else if (rbac.allowedUnitIds !== null) {
+      // Investor: get projects that contain their units
+      if (rbac.allowedUnitIds.length === 0) {
+        return { success: true, data: [] };
+      }
+      const investorUnits = await db.query.units.findMany({
+        where: and(
+          inArray(units.id, rbac.allowedUnitIds),
+          eq(units.isDeleted, false)
+        ),
+      });
+      const investorProjectIds = [...new Set(investorUnits.map(u => u.projectId))];
+      if (investorProjectIds.length === 0) {
+        return { success: true, data: [] };
+      }
+      data = await db.query.projects.findMany({
+        where: and(
+          eq(projects.isDeleted, false),
+          inArray(projects.id, investorProjectIds)
+        ),
+        with: {
+          units: {
+            where: eq(units.isDeleted, false)
+          }
+        }
+      });
+      // Further filter units within each project to only show investor's units
+      data = data.map(p => ({
+        ...p,
+        units: p.units.filter(u => rbac.allowedUnitIds!.includes(u.id))
+      }));
+    } else {
+      data = await db.query.projects.findMany({
+        where: eq(projects.isDeleted, false),
+        with: {
+          units: {
+            where: eq(units.isDeleted, false)
+          }
+        }
+      });
+    }
 
     const result = data.map(p => {
       const counts = {
@@ -42,7 +97,7 @@ export const projectRoutes = new Elysia({ prefix: '/projects' })
     return { success: true, data: result };
   })
   .post('/', async ({ body, user, set }) => {
-    if (user.role !== 'super_admin') {
+    if ((user as UserPayload).role !== 'super_admin') {
       set.status = 403;
       return { success: false, message: 'Forbidden' };
     }
@@ -68,7 +123,7 @@ export const projectRoutes = new Elysia({ prefix: '/projects' })
     })
   })
   .put('/:id', async ({ params: { id }, body, user, set }) => {
-    if (user.role !== 'super_admin') {
+    if ((user as UserPayload).role !== 'super_admin') {
       set.status = 403;
       return { success: false, message: 'Forbidden' };
     }
@@ -96,27 +151,61 @@ export const projectRoutes = new Elysia({ prefix: '/projects' })
     })
   })
   .delete('/:id', async ({ params: { id }, user, set }) => {
-    if (user.role !== 'super_admin') {
+    if ((user as UserPayload).role !== 'super_admin') {
       set.status = 403;
       return { success: false, message: 'Forbidden' };
     }
 
-    await db.delete(projects).where(eq(projects.id, parseInt(id)));
-    // Also delete units? PRD doesn't specify cascade, but usually yes.
-    await db.delete(units).where(eq(units.projectId, parseInt(id)));
+    await db.update(projects)
+      .set({ isDeleted: true })
+      .where(eq(projects.id, parseInt(id)));
     
-    return { success: true, message: 'Project deleted' };
+    // Also soft delete units
+    await db.update(units)
+      .set({ isDeleted: true })
+      .where(eq(units.projectId, parseInt(id)));
+    
+    return { success: true, message: 'Project soft-deleted' };
   })
-  .get('/:id/units', async ({ params: { id } }) => {
-    const data = await db.query.units.findMany({
-      where: eq(units.projectId, parseInt(id)),
+  .get('/:id/units', async ({ params: { id }, user, set }) => {
+    const rbac = await getRBACContext(user as UserPayload);
+
+    // RBAC: verify project access
+    if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(parseInt(id))) {
+      set.status = 403;
+      return { success: false, message: 'Forbidden' };
+    }
+
+    let data = await db.query.units.findMany({
+      where: and(
+        eq(units.projectId, parseInt(id)),
+        eq(units.isDeleted, false)
+      ),
     });
+
+    // If investor, filter to only their units
+    if (rbac.allowedUnitIds !== null) {
+      data = data.filter(u => rbac.allowedUnitIds!.includes(u.id));
+    }
+
     return { success: true, data };
   })
   .post('/:id/units', async ({ params: { id }, body, user, set }) => {
-    if (user.role !== 'super_admin') {
+    const role = (user as UserPayload).role;
+
+    // Only super_admin and admin_villa can add units
+    if (role === 'investor') {
       set.status = 403;
       return { success: false, message: 'Forbidden' };
+    }
+
+    // admin_villa: verify project belongs to them
+    if (role === 'admin_villa') {
+      const rbac = await getRBACContext(user as UserPayload);
+      if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(parseInt(id))) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Project is not in your assigned area' };
+      }
     }
 
     const [newUnit] = await db.insert(units).values({
@@ -137,9 +226,18 @@ export const projectRoutes = new Elysia({ prefix: '/projects' })
     })
   })
   .put('/:id/bulk-price', async ({ params: { id }, body, user, set }) => {
-    if (user.role !== 'super_admin') {
+    const role = (user as UserPayload).role;
+    if (role === 'investor') {
       set.status = 403;
       return { success: false, message: 'Forbidden' };
+    }
+
+    if (role === 'admin_villa') {
+      const rbac = await getRBACContext(user as UserPayload);
+      if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(parseInt(id))) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden' };
+      }
     }
 
     const { type, price } = body;
