@@ -5,6 +5,7 @@ import { staticPlugin } from '@elysiajs/static'
 import { authRoutes } from './api/auth'
 import { userRoutes } from './api/users'
 import { projectRoutes } from './api/projects'
+import { unitRoutes } from './api/units'
 import { bookingRoutes } from './api/bookings'
 import { financeRoutes } from './api/finances'
 import { dashboardRoutes } from './api/dashboard'
@@ -25,6 +26,7 @@ const app = new Elysia()
             .use(authRoutes)
             .use(userRoutes)
             .use(projectRoutes)
+            .use(unitRoutes)
             .use(bookingRoutes)
             .use(financeRoutes)
             .use(dashboardRoutes)

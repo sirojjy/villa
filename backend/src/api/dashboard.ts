@@ -1,8 +1,9 @@
 import { Elysia } from 'elysia';
 import { db } from '../db';
 import { finances, bookings, units } from '../db/schema';
-import { eq, sql, and, between, desc } from 'drizzle-orm';
+import { eq, sql, and, between, desc, inArray } from 'drizzle-orm';
 import { jwt } from '@elysiajs/jwt';
+import { getRBACContext, type UserPayload } from '../middleware/rbac';
 
 export const dashboardRoutes = new Elysia({ prefix: '/dashboard' })
   .use(
@@ -22,8 +23,10 @@ export const dashboardRoutes = new Elysia({ prefix: '/dashboard' })
       return { success: false, message: 'Unauthorized' };
     }
   })
-  .get('/summary', async ({ set }) => {
+  .get('/summary', async ({ user, set }) => {
     try {
+      const rbac = await getRBACContext(user as UserPayload);
+
       const today = new Date();
       const firstDayMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const lastDayMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -31,76 +34,161 @@ export const dashboardRoutes = new Elysia({ prefix: '/dashboard' })
       const firstDayPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
       const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
 
-      // 1. Revenue Stats (Current vs Prev Month)
-      const currentRevenue = await db.select({ 
-        total: sql<string>`COALESCE(sum(${finances.amount}), '0')` 
-      }).from(finances).where(and(
-        eq(finances.type, 'income'),
-        between(finances.date, firstDayMonth, lastDayMonth)
-      ));
+      // Determine allowed unit IDs for filtering
+      let allowedUnitIds: number[] | null = null;
+      if (rbac.allowedProjectIds !== null) {
+        // admin_villa: get units from allowed projects
+        const projectUnits = await db.query.units.findMany({
+          where: and(
+            inArray(units.projectId, rbac.allowedProjectIds.length > 0 ? rbac.allowedProjectIds : [0]),
+            eq(units.isDeleted, false)
+          ),
+        });
+        allowedUnitIds = projectUnits.map(u => u.id);
+      } else if (rbac.allowedUnitIds !== null) {
+        // investor: directly assigned units
+        allowedUnitIds = rbac.allowedUnitIds;
+      }
+      // super_admin: allowedUnitIds remains null (unrestricted)
 
-      const prevRevenue = await db.select({ 
-        total: sql<string>`COALESCE(sum(${finances.amount}), '0')` 
-      }).from(finances).where(and(
-        eq(finances.type, 'income'),
-        between(finances.date, firstDayPrevMonth, lastDayPrevMonth)
-      ));
+      const isInvestor = (user as UserPayload).role === 'investor';
 
-      // 2. Booking Stats
-      const totalBookings = await db.select({ 
-        count: sql<number>`count(*)` 
-      }).from(bookings);
+      // --- Revenue Stats (hide from investor) ---
+      let currentRevenue = 0;
+      let prevRevenue = 0;
+      let dailyRevenue: any[] = [];
 
-      // 3. Occupancy Stats
-      const occupancyStats = await db.select({
-        status: units.status,
-        count: sql<number>`count(*)`
-      }).from(units).groupBy(units.status);
+      if (!isInvestor) {
+        // Build finance filters
+        const financeProjectFilter = rbac.allowedProjectIds !== null && rbac.allowedProjectIds.length > 0
+          ? inArray(finances.projectId, rbac.allowedProjectIds)
+          : undefined;
 
-      // 4. Daily Revenue (Last 14 days)
-      const fourteenDaysAgo = new Date();
-      fourteenDaysAgo.setDate(today.getDate() - 14);
+        const currentRevenueResult = await db.select({
+          total: sql<string>`COALESCE(sum(${finances.amount}), '0')`
+        }).from(finances).where(and(
+          eq(finances.type, 'income'),
+          between(finances.date, firstDayMonth, lastDayMonth),
+          financeProjectFilter
+        ));
 
-      const dailyRevenue = await db.select({
-        day: sql<string>`DATE_FORMAT(${finances.date}, '%Y-%m-%d')`,
-        income: sql<string>`COALESCE(sum(case when ${finances.type} = 'income' then ${finances.amount} else 0 end), '0')`,
-        expense: sql<string>`COALESCE(sum(case when ${finances.type} = 'expense' then ${finances.amount} else 0 end), '0')`
-      })
-      .from(finances)
-      .where(between(finances.date, fourteenDaysAgo, today))
-      .groupBy(sql`DATE_FORMAT(${finances.date}, '%Y-%m-%d')`)
-      .orderBy(sql`DATE_FORMAT(${finances.date}, '%Y-%m-%d')`);
+        const prevRevenueResult = await db.select({
+          total: sql<string>`COALESCE(sum(${finances.amount}), '0')`
+        }).from(finances).where(and(
+          eq(finances.type, 'income'),
+          between(finances.date, firstDayPrevMonth, lastDayPrevMonth),
+          financeProjectFilter
+        ));
 
-      // 5. Recent Bookings
-      const recent = await db.query.bookings.findMany({
-        limit: 5,
-        orderBy: [desc(bookings.createdAt)],
-        with: {
-          unit: {
-            with: { project: true }
-          }
+        currentRevenue = Number(currentRevenueResult[0]?.total || 0);
+        prevRevenue = Number(prevRevenueResult[0]?.total || 0);
+
+        // Daily Revenue (Last 14 days)
+        const fourteenDaysAgo = new Date();
+        fourteenDaysAgo.setDate(today.getDate() - 14);
+
+        const dailyRevenueResult = await db.select({
+          day: sql<string>`DATE_FORMAT(${finances.date}, '%Y-%m-%d')`,
+          income: sql<string>`COALESCE(sum(case when ${finances.type} = 'income' then ${finances.amount} else 0 end), '0')`,
+          expense: sql<string>`COALESCE(sum(case when ${finances.type} = 'expense' then ${finances.amount} else 0 end), '0')`
+        })
+        .from(finances)
+        .where(and(
+          between(finances.date, fourteenDaysAgo, today),
+          financeProjectFilter
+        ))
+        .groupBy(sql`DATE_FORMAT(${finances.date}, '%Y-%m-%d')`)
+        .orderBy(sql`DATE_FORMAT(${finances.date}, '%Y-%m-%d')`);
+
+        dailyRevenue = dailyRevenueResult.map(d => ({
+          ...d,
+          income: Number(d.income),
+          expense: Number(d.expense)
+        }));
+      }
+
+      // --- Booking Stats ---
+      let totalBookingsCount = 0;
+      if (allowedUnitIds !== null) {
+        if (allowedUnitIds.length > 0) {
+          const result = await db.select({
+            count: sql<number>`count(*)`
+          }).from(bookings).where(inArray(bookings.unitId, allowedUnitIds));
+          totalBookingsCount = Number(result[0]?.count || 0);
         }
-      });
+      } else {
+        const result = await db.select({
+          count: sql<number>`count(*)`
+        }).from(bookings);
+        totalBookingsCount = Number(result[0]?.count || 0);
+      }
+
+      // --- Occupancy Stats ---
+      let occupancyFilter = eq(units.isDeleted, false);
+      let occupancyStats;
+      if (allowedUnitIds !== null && allowedUnitIds.length > 0) {
+        occupancyStats = await db.select({
+          status: units.status,
+          count: sql<number>`count(*)`
+        })
+        .from(units)
+        .where(and(occupancyFilter, inArray(units.id, allowedUnitIds)))
+        .groupBy(units.status);
+      } else if (allowedUnitIds !== null && allowedUnitIds.length === 0) {
+        occupancyStats = [];
+      } else {
+        occupancyStats = await db.select({
+          status: units.status,
+          count: sql<number>`count(*)`
+        })
+        .from(units)
+        .where(occupancyFilter)
+        .groupBy(units.status);
+      }
+
+      // --- Recent Bookings ---
+      let recent;
+      if (allowedUnitIds !== null && allowedUnitIds.length > 0) {
+        recent = await db.query.bookings.findMany({
+          limit: 5,
+          where: inArray(bookings.unitId, allowedUnitIds),
+          orderBy: [desc(bookings.createdAt)],
+          with: {
+            unit: {
+              with: { project: true }
+            }
+          }
+        });
+      } else if (allowedUnitIds !== null && allowedUnitIds.length === 0) {
+        recent = [];
+      } else {
+        recent = await db.query.bookings.findMany({
+          limit: 5,
+          orderBy: [desc(bookings.createdAt)],
+          with: {
+            unit: {
+              with: { project: true }
+            }
+          }
+        });
+      }
 
       return {
         success: true,
         data: {
           metrics: {
-            currentRevenue: Number(currentRevenue[0]?.total || 0),
-            prevRevenue: Number(prevRevenue[0]?.total || 0),
-            totalBookings: Number(totalBookings[0]?.count || 0),
-            occupancy: occupancyStats.reduce((acc: any, curr) => {
+            ...(isInvestor ? {} : { currentRevenue, prevRevenue }),
+            totalBookings: totalBookingsCount,
+            occupancy: (occupancyStats || []).reduce((acc: any, curr) => {
               acc[curr.status] = Number(curr.count);
               return acc;
             }, { ready: 0, occupied: 0, maintenance: 0 })
           },
-          charts: {
-            daily: dailyRevenue.map(d => ({
-              ...d,
-              income: Number(d.income),
-              expense: Number(d.expense)
-            }))
-          },
+          ...(isInvestor ? {} : {
+            charts: {
+              daily: dailyRevenue
+            }
+          }),
           recentActivity: recent
         }
       };

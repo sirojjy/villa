@@ -6,6 +6,8 @@ interface User {
   name: string;
   username: string;
   role: 'super_admin' | 'admin_villa' | 'investor';
+  projectIds?: number[];
+  unitIds?: number[];
 }
 
 interface AuthState {

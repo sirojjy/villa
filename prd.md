@@ -43,8 +43,8 @@ Villa Management System adalah aplikasi web berbasis admin yang digunakan oleh P
 | Role | Deskripsi | Akses |
 |---|---|---|
 | Super Admin | Administrator utama sistem | Semua modul + manajemen user & villa |
-| Admin Villa | Staff operasional villa | Front Desk, Pemesanan, Keuangan villa sendiri |
-| Investor | Pemilik unit atau investor | Dashboard villa yang diinvestasikan saja |
+| Admin Villa | Staff operasional villa | Semua modul, tetapi data yang dikelola dibatasi pada area (project/villa) yang ditugaskan |
+| Investor | Pemilik unit | Hanya bisa mengakses menu Dashboard & Riwayat Pemesanan. Data dibatasi khusus pada unit yang dimilikinya. Data keuangan disembunyikan. |
 
 ### Modul yang Dibangun
 
@@ -612,11 +612,11 @@ Hanya dapat diakses oleh Super Admin. Digunakan untuk membuat, mengelola, dan me
 
 ### Logika Asosiasi Villa per User
 
-| Role | Asosiasi Villa |
+| Role | Asosiasi |
 |---|---|
-| Super Admin | Tidak perlu dipilih — otomatis akses ke semua villa |
-| Admin Villa | Pilih satu atau lebih villa yang dikelola |
-| Investor | Pilih satu atau lebih villa yang diinvestasikan |
+| Super Admin | Tidak perlu dipilih — otomatis akses ke semua data |
+| Admin Villa | Pilih satu atau lebih villa (project) yang dikelola |
+| Investor | Pilih satu atau lebih unit secara spesifik yang diinvestasikan |
 
 ### Fitur Tambahan
 
@@ -652,8 +652,9 @@ Hanya dapat diakses oleh Super Admin. Digunakan untuk membuat, mengelola, dan me
 |---|---|
 | `users` | id, name, username, password_hash, role, created_at, last_login |
 | `projects` | id, name, address, status, photo_url, facilities, base_price |
-| `user_projects` | user_id, project_id (relasi many-to-many) |
+| `user_projects` | user_id, project_id (relasi many-to-many untuk Admin Villa) |
 | `units` | id, project_id, name, type (luxury/middle/low), price_per_night, status |
+| `user_units` | user_id, unit_id (relasi many-to-many untuk kepemilikan unit Investor) |
 | `bookings` | id, unit_id, guest_name, contact, check_in, check_out, method, total, status |
 | `finances` | id, project_id, type (income/expense), category, description, amount, date |
 | `reviews` | id, booking_id, rating, comment |
