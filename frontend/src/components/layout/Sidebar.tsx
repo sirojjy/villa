@@ -32,7 +32,7 @@ const navItems = [
   { name: 'Front Desk', icon: Home, path: '/front-desk', roles: ['super_admin', 'admin_villa'] },
   { name: 'Riwayat Booking', icon: History, path: '/bookings', roles: ['super_admin', 'admin_villa', 'investor'] },
   { name: 'Keuangan', icon: Wallet, path: '/finance', roles: ['super_admin', 'admin_villa'] },
-  { name: 'Project & Unit', icon: Calendar, path: '/projects', roles: ['super_admin'] },
+  { name: 'Project & Unit', icon: Calendar, path: '/projects', roles: ['super_admin', 'admin_villa'] },
   { name: 'User Management', icon: Users, path: '/users', roles: ['super_admin'] },
 ];
 
@@ -92,8 +92,8 @@ export default function Sidebar() {
               <span className="text-slate-950 font-bold text-xl">SV</span>
             </div>
             <div>
-              <h1 className="text-slate-900 dark:text-white font-bold leading-none">SV Villa</h1>
-              <p className="text-slate-500 text-[10px] uppercase tracking-widest mt-1">Management</p>
+              <h1 className="text-slate-900 dark:text-white font-bold leading-none">Villa Management</h1>
+              <p className="text-slate-500 text-[10px] uppercase tracking-widest mt-1">Pengelolaan Villa Terpadu</p>
             </div>
           </div>
           

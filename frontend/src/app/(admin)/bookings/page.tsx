@@ -27,6 +27,7 @@ import DeleteConfirmationModal from '@/components/DeleteConfirmationModal';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import FilePreviewModal from '@/components/ui/FilePreviewModal';
+import { useAuthStore } from '@/store/auth';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,6 +40,9 @@ export default function BookingsHistoryPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const { user } = useAuthStore();
+  const isInvestor = user?.role === 'investor';
+  
   const [editingBooking, setEditingBooking] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -183,9 +187,10 @@ export default function BookingsHistoryPage() {
               <tr className="border-b border-slate-100 dark:border-slate-800/50">
                 <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Guest Information</th>
                 <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Stay Period</th>
-                <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Status</th>
-                <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Total Bill</th>
-                <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px] text-right">Actions</th>
+                 <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Status</th>
+                <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">{isInvestor ? 'Booking Method' : 'Total Bill'}</th>
+                {!isInvestor && <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px] text-right">Actions</th>}
+                {isInvestor && <th className="px-8 py-7 text-slate-400 font-extrabold uppercase tracking-widest text-[10px] text-right">Details</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-900 dark:text-slate-100">
@@ -225,28 +230,39 @@ export default function BookingsHistoryPage() {
                         {booking.status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-8 py-6">
-                      <p className="text-slate-900 dark:text-white font-black text-lg tracking-tighter leading-none mb-1">
-                        Rp {parseFloat(booking.total).toLocaleString('id-ID')}
+                     <td className="px-8 py-6">
+                      {!isInvestor && (
+                        <p className="text-slate-900 dark:text-white font-black text-lg tracking-tighter leading-none mb-1">
+                          Rp {parseFloat(booking.total).toLocaleString('id-ID')}
+                        </p>
+                      )}
+                      <p className={cn(
+                        "text-[10px] font-bold uppercase tracking-widest",
+                        isInvestor ? "text-slate-900 dark:text-white" : "text-slate-500"
+                      )}>
+                        {isInvestor ? booking.method : `via ${booking.method}`}
                       </p>
-                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">via {booking.method}</p>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                     <td className="px-8 py-6 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleOpenEditModal(booking)} 
-                          title="Edit Booking"
-                          className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-amber-500 transition-all border border-slate-100 dark:border-slate-700 hover:border-amber-500/30 shadow-sm"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => setDeleteId(booking.id)} 
-                          title="Delete Booking"
-                          className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-red-500/10 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-slate-100 dark:border-slate-700 hover:border-red-500/20 shadow-sm"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!isInvestor && (
+                          <>
+                            <button 
+                              onClick={() => handleOpenEditModal(booking)} 
+                              title="Edit Booking"
+                              className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-amber-500 transition-all border border-slate-100 dark:border-slate-700 hover:border-amber-500/30 shadow-sm"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => setDeleteId(booking.id)} 
+                              title="Delete Booking"
+                              className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-red-500/10 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-slate-100 dark:border-slate-700 hover:border-red-500/20 shadow-sm"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                         <button 
                           onClick={() => setSelectedBooking(booking)}
                           title="View Details"
@@ -296,26 +312,34 @@ export default function BookingsHistoryPage() {
                       {new Date(booking.checkIn).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })} — {new Date(booking.checkOut).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}
                     </p>
                  </div>
-                 <div className="text-right">
-                    <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Total Bill</p>
-                    <p className="text-sm font-black text-emerald-500">Rp {parseFloat(booking.total).toLocaleString('id-ID')}</p>
-                 </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">{isInvestor ? 'Booking Method' : 'Total Bill'}</p>
+                    {isInvestor ? (
+                      <p className="text-sm font-black text-slate-700 dark:text-slate-300 capitalize">{booking.method}</p>
+                    ) : (
+                      <p className="text-sm font-black text-emerald-500">Rp {parseFloat(booking.total).toLocaleString('id-ID')}</p>
+                    )}
+                  </div>
                </div>
 
                <div className="flex items-center justify-between">
                   <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleOpenEditModal(booking)}
-                      className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => setDeleteId(booking.id)}
-                      className="p-3 bg-red-500/10 text-red-500 rounded-2xl"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!isInvestor && (
+                      <>
+                        <button 
+                          onClick={() => handleOpenEditModal(booking)}
+                          className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteId(booking.id)}
+                          className="p-3 bg-red-500/10 text-red-500 rounded-2xl"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                   <button 
                     onClick={() => setSelectedBooking(booking)}
@@ -419,13 +443,15 @@ export default function BookingsHistoryPage() {
             </div>
             
             <div className="p-8 bg-slate-50 dark:bg-slate-950/50 flex justify-end gap-3">
-               <button 
-                onClick={() => { setSelectedBooking(null); handleOpenEditModal(selectedBooking); }}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-8 py-3 rounded-2xl transition-all shadow-sm flex items-center gap-2"
-               >
-                 <Edit className="w-4 h-4" />
-                 Edit Booking
-               </button>
+               {!isInvestor && (
+                 <button 
+                  onClick={() => { setSelectedBooking(null); handleOpenEditModal(selectedBooking); }}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-8 py-3 rounded-2xl transition-all shadow-sm flex items-center gap-2"
+                 >
+                   <Edit className="w-4 h-4" />
+                   Edit Booking
+                 </button>
+               )}
                <button 
                 onClick={() => setSelectedBooking(null)}
                 className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold px-8 py-3 rounded-2xl transition-all shadow-sm"

@@ -84,8 +84,12 @@ export default function LoginPage() {
             <div className="w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mb-4">
               <LogIn className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">SV Villa</h1>
-            <p className="text-slate-400 text-sm mt-1">Management System — PT. Shaka Jaya Properti</p>
+            <h1 className="text-3xl font-black text-white tracking-tighter sm:text-4xl">
+              Villa Management
+            </h1>
+            <p className="mt-2 text-sm font-medium text-slate-400 uppercase tracking-widest px-4 py-1 bg-slate-800/50 rounded-full border border-slate-700/50">
+              Pengelolaan Villa Terpadu
+            </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">

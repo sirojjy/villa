@@ -37,6 +37,7 @@ export default function UserManagementPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [selectedProjectIdForUnits, setSelectedProjectIdForUnits] = useState<number | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -44,11 +45,13 @@ export default function UserManagementPage() {
     username: '',
     password: '',
     role: 'admin_villa',
-    projectIds: [] as number[]
+    projectIds: [] as number[],
+    unitIds: [] as number[]
   });
 
   const { data: userData, error, isLoading } = useSWR('/users', fetcher);
   const { data: projectData } = useSWR('/projects', fetcher);
+  const { data: unitData } = useSWR('/units', fetcher);
 
   const handleOpenModal = (user?: any) => {
     if (user) {
@@ -58,7 +61,8 @@ export default function UserManagementPage() {
         username: user.username,
         password: '', // Reset on edit
         role: user.role,
-        projectIds: user.userProjects?.map((up: any) => up.projectId) || []
+        projectIds: user.userProjects?.map((up: any) => up.projectId) || [],
+        unitIds: user.userUnits?.map((uu: any) => uu.unitId) || []
       });
     } else {
       setEditingUser(null);
@@ -67,9 +71,11 @@ export default function UserManagementPage() {
         username: '',
         password: '',
         role: 'admin_villa',
-        projectIds: []
+        projectIds: [],
+        unitIds: []
       });
     }
+    setSelectedProjectIdForUnits(null);
     setIsModalOpen(true);
   };
 
@@ -82,7 +88,8 @@ export default function UserManagementPage() {
         await api.put(`/users/${editingUser.id}`, {
           name: formData.name,
           role: formData.role,
-          projectIds: formData.projectIds
+          projectIds: formData.role === 'admin_villa' ? formData.projectIds : [],
+          unitIds: formData.role === 'investor' ? formData.unitIds : []
         });
       } else {
         await api.post('/users', formData);
@@ -357,10 +364,10 @@ export default function UserManagementPage() {
                 </div>
               </div>
 
-              {formData.role !== 'super_admin' && (
+              {formData.role === 'admin_villa' && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Assign Villas</label>
-                  <p className="text-[10px] text-slate-600 mb-2 italic">Select one or more villas this user can manage/see.</p>
+                  <p className="text-[10px] text-slate-600 mb-2 italic">Select one or more villas this user can manage.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                     {projectData?.map((p: any) => (
                       <label key={p.id} className={cn(
@@ -388,6 +395,95 @@ export default function UserManagementPage() {
                       </label>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {formData.role === 'investor' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">1. Select Villa</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {projectData?.map((p: any) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setSelectedProjectIdForUnits(p.id)}
+                          className={cn(
+                            "py-2.5 px-4 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all truncate",
+                            selectedProjectIdForUnits === p.id 
+                              ? "bg-amber-500 border-amber-500 text-slate-950 shadow-lg shadow-amber-500/20" 
+                              : "bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700"
+                          )}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedProjectIdForUnits && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">2. Assign Units</label>
+                      <p className="text-[10px] text-slate-600 mb-2 italic px-1">Select units owned by investor in this villa.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar border border-slate-800/50 rounded-2xl p-2 bg-slate-950/30">
+                        {unitData?.filter((u: any) => u.projectId === selectedProjectIdForUnits).map((u: any) => (
+                          <label key={u.id} className={cn(
+                            "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                            formData.unitIds.includes(u.id) ? "bg-amber-500/10 border-amber-500/50 text-amber-500" : "bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700"
+                          )}>
+                            <div className={cn(
+                              "w-5 h-5 rounded flex items-center justify-center border transition-all",
+                              formData.unitIds.includes(u.id) ? "bg-amber-500 border-amber-500" : "bg-slate-800 border-slate-700"
+                            )}>
+                              {formData.unitIds.includes(u.id) && <Check className="w-3.5 h-3.5 text-slate-950" />}
+                            </div>
+                            <input 
+                              type="checkbox" 
+                              hidden 
+                              checked={formData.unitIds.includes(u.id)}
+                              onChange={() => {
+                                const newIds = formData.unitIds.includes(u.id)
+                                  ? formData.unitIds.filter(id => id !== u.id)
+                                  : [...formData.unitIds, u.id];
+                                setFormData({...formData, unitIds: newIds});
+                              }}
+                            />
+                            <span className="text-xs font-bold truncate">{u.name}</span>
+                          </label>
+                        ))}
+                        {unitData?.filter((u: any) => u.projectId === selectedProjectIdForUnits).length === 0 && (
+                          <div className="col-span-2 py-8 text-center text-slate-600 text-[10px] uppercase font-bold tracking-widest">
+                            No units found in this villa
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary of currently selected units across all villas */}
+                  {formData.unitIds.length > 0 && (
+                    <div className="pt-2 px-1">
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-2">Selected: {formData.unitIds.length} Units Total</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {formData.unitIds.map(id => {
+                          const unit = unitData?.find((u: any) => u.id === id);
+                          if (!unit) return null;
+                          return (
+                            <div key={id} className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg flex items-center gap-2 group transition-all">
+                              <span className="text-[10px] text-slate-400 font-medium">{unit.name}</span>
+                              <button 
+                                type="button"
+                                onClick={() => setFormData({...formData, unitIds: formData.unitIds.filter(uid => uid !== id)})}
+                                className="text-slate-600 hover:text-red-500 transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -12,7 +12,7 @@ const routeRoles: Record<string, string[]> = {
   '/front-desk': ['super_admin', 'admin_villa'],
   '/bookings': ['super_admin', 'admin_villa', 'investor'],
   '/finance': ['super_admin', 'admin_villa'],
-  '/projects': ['super_admin'],
+  '/projects': ['super_admin', 'admin_villa'],
   '/users': ['super_admin'],
 };
 

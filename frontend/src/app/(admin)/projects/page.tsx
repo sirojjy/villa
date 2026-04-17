@@ -19,6 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -39,6 +40,8 @@ export default function ProjectsManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteData, setDeleteData] = useState<{ id: number, type: 'project' | 'unit', name: string } | null>(null);
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'super_admin';
 
   // Form States
   const [projectForm, setProjectForm] = useState({
@@ -172,13 +175,15 @@ export default function ProjectsManagementPage() {
           <h1 className="text-4xl font-bold text-white tracking-tight leading-tight">Project & Unit</h1>
           <p className="text-slate-400 mt-2">Manage your villa locations and room inventories.</p>
         </div>
-        <button 
-          onClick={() => handleOpenProjectModal()}
-          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3.5 rounded-2xl transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Add New Project
-        </button>
+        {isSuperAdmin && (
+          <button 
+            onClick={() => handleOpenProjectModal()}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3.5 rounded-2xl transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Add New Project
+          </button>
+        )}
       </div>
 
       {/* Projects Table */}
@@ -240,20 +245,24 @@ export default function ProjectsManagementPage() {
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleOpenProjectModal(p); }} 
-                        title="Edit Project"
-                        className="p-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-slate-400 hover:text-amber-500 transition-all border border-slate-700 shadow-sm"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setDeleteData({ id: p.id, type: 'project', name: p.name }); }} 
-                        title="Delete Project"
-                        className="p-3 bg-red-500/10 hover:bg-red-500/20 rounded-2xl text-red-500 transition-all border border-red-500/10 shadow-sm"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isSuperAdmin && (
+                        <>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleOpenProjectModal(p); }} 
+                            title="Edit Project"
+                            className="p-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-slate-400 hover:text-amber-500 transition-all border border-slate-700 shadow-sm"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setDeleteData({ id: p.id, type: 'project', name: p.name }); }} 
+                            title="Delete Project"
+                            className="p-3 bg-red-500/10 hover:bg-red-500/20 rounded-2xl text-red-500 transition-all border border-red-500/10 shadow-sm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                       <button onClick={(e) => { e.stopPropagation(); setSelectedProjectId(p.id); }} className={cn(
                         "p-3 rounded-2xl transition-all shadow-lg",
                         selectedProjectId === p.id ? "bg-amber-500 text-slate-950" : "bg-slate-800 hover:bg-slate-700 text-amber-500 border border-slate-700"
@@ -297,12 +306,16 @@ export default function ProjectsManagementPage() {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                   <button onClick={(e) => { e.stopPropagation(); handleOpenProjectModal(p); }} className="flex-1 bg-slate-800 h-10 rounded-xl text-slate-400 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
-                     <Edit className="w-3.5 h-3.5" /> Edit
-                   </button>
-                   <button onClick={(e) => { e.stopPropagation(); setDeleteData({ id: p.id, type: 'project', name: p.name }); }} className="flex-1 bg-red-500/10 h-10 rounded-xl text-red-500 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
-                     <Trash2 className="w-3.5 h-3.5" /> Delete
-                   </button>
+                   {isSuperAdmin && (
+                     <>
+                       <button onClick={(e) => { e.stopPropagation(); handleOpenProjectModal(p); }} className="flex-1 bg-slate-800 h-10 rounded-xl text-slate-400 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                         <Edit className="w-3.5 h-3.5" /> Edit
+                       </button>
+                       <button onClick={(e) => { e.stopPropagation(); setDeleteData({ id: p.id, type: 'project', name: p.name }); }} className="flex-1 bg-red-500/10 h-10 rounded-xl text-red-500 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                         <Trash2 className="w-3.5 h-3.5" /> Delete
+                       </button>
+                     </>
+                   )}
                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-950">
                      <ChevronRight className="w-5 h-5" />
                    </div>
