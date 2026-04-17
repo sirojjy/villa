@@ -38,13 +38,15 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
       date_to,
       search,
       page = '1', 
-      limit = '50'
+      limit = '50',
+      unit_id
     } = query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Initial filters
     const filters = [];
     if (project_id && project_id !== '0') filters.push(eq(finances.projectId, parseInt(project_id)));
+    if (unit_id && unit_id !== '0') filters.push(eq(finances.unitId, parseInt(unit_id as string)));
     if (type) filters.push(eq(finances.type, type as any));
 
     if (date_from && date_to) {
@@ -70,7 +72,8 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     const data = await db.query.finances.findMany({
       where: filters.length > 0 ? and(...filters) : undefined,
       with: {
-        project: true
+        project: true,
+        unit: true
       },
       limit: parseInt(limit),
       offset: offset,
@@ -90,11 +93,13 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
       type, 
       date_from, 
       date_to,
-      search 
+      search,
+      unit_id 
     } = query;
 
     const filters = [];
     if (project_id && project_id !== '0') filters.push(eq(finances.projectId, parseInt(project_id)));
+    if (unit_id && unit_id !== '0') filters.push(eq(finances.unitId, parseInt(unit_id as string)));
     if (type) filters.push(eq(finances.type, type as any));
     if (date_from && date_to) {
       filters.push(between(finances.date, new Date(date_from), new Date(date_to)));
@@ -129,7 +134,7 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     '/',
     async ({ body, user, set }) => {
       const rbac = await getRBACContext(user as UserPayload);
-      const { projectId, type, category, description, amount, date, attachment } = body;
+      const { projectId, unitId, name, type, category, description, amount, date, attachment } = body;
 
       // RBAC: admin_villa can only create for their projects
       if (rbac.allowedProjectIds !== null && !rbac.allowedProjectIds.includes(parseInt(projectId as any))) {
@@ -155,6 +160,8 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
 
       const [newRecord] = await db.insert(finances).values({
         projectId: parseInt(projectId as any),
+        unitId: unitId ? parseInt(unitId as any) : null,
+        name: name || null,
         type: type as any,
         category,
         description: description || null,
@@ -172,19 +179,21 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     {
       body: t.Object({
         projectId: t.Any(),
+        name: t.Optional(t.String()),
         type: t.String(),
         category: t.String(),
         description: t.Optional(t.String()),
         amount: t.Any(),
         date: t.Optional(t.String()),
         attachment: t.Optional(t.File()),
+        unitId: t.Optional(t.Any()),
       }),
     }
   )
   .put('/:id', async ({ params: { id }, body, user, set }) => {
     const rbac = await getRBACContext(user as UserPayload);
     const financeId = parseInt(id);
-    const { projectId, type, category, description, amount, date, attachment } = body;
+    const { projectId, unitId, name, type, category, description, amount, date, attachment } = body;
 
     const existing = await db.query.finances.findFirst({
       where: eq(finances.id, financeId)
@@ -218,6 +227,8 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     await db.update(finances)
       .set({
         projectId: projectId ? parseInt(projectId as any) : undefined,
+        unitId: unitId !== undefined ? (unitId ? parseInt(unitId as any) : null) : undefined,
+        name: name !== undefined ? name : undefined,
         type: type as any,
         category: category || undefined,
         description: description || undefined,
@@ -231,12 +242,14 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
   }, {
     body: t.Object({
       projectId: t.Optional(t.Any()),
+      name: t.Optional(t.String()),
       type: t.Optional(t.String()),
       category: t.Optional(t.String()),
       description: t.Optional(t.String()),
       amount: t.Optional(t.Any()),
       date: t.Optional(t.String()),
       attachment: t.Optional(t.File()),
+      unitId: t.Optional(t.Any()),
     })
   })
   .delete('/:id', async ({ params: { id }, user, set }) => {

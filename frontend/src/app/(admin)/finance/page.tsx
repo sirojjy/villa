@@ -15,9 +15,11 @@ import {
   X,
   FileText,
   Edit,
-  Trash2
+  Trash2,
+  User
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -33,8 +35,11 @@ export default function FinancePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<number>(0);
+  const [selectedUnitId, setSelectedUnitId] = useState<number>(0);
   const [selectedType, setSelectedType] = useState<string>('');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'super_admin';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -45,6 +50,8 @@ export default function FinancePage() {
 
   const [formData, setFormData] = useState({
     projectId: 0,
+    unitId: 0 as number | null,
+    name: '',
     type: 'income',
     category: '',
     description: '',
@@ -58,6 +65,8 @@ export default function FinancePage() {
       setEditingTransaction(t);
       setFormData({
         projectId: t.projectId,
+        unitId: t.unitId || 0,
+        name: t.name || '',
         type: t.type,
         category: t.category,
         description: t.description || '',
@@ -69,6 +78,8 @@ export default function FinancePage() {
       setEditingTransaction(null);
       setFormData({
         projectId: selectedProjectId !== 0 ? selectedProjectId : 0,
+        unitId: 0,
+        name: '',
         type: 'income',
         category: '',
         description: '',
@@ -81,13 +92,21 @@ export default function FinancePage() {
   };
 
   const { data: finances, isLoading } = useSWR(
-    `/finances?search=${searchTerm}&project_id=${selectedProjectId}&type=${selectedType}`, 
+    `/finances?search=${searchTerm}&project_id=${selectedProjectId}&unit_id=${selectedUnitId}&type=${selectedType}`, 
     fetcher
   );
   
   const { data: projects } = useSWR('/projects', fetcher);
+  const { data: unitsInModal } = useSWR(
+    formData.projectId ? `/projects/${formData.projectId}/units` : null, 
+    fetcher
+  );
+  const { data: unitsInFilter } = useSWR(
+    selectedProjectId ? `/projects/${selectedProjectId}/units` : null, 
+    fetcher
+  );
   const { data: summary } = useSWR(
-    `/finances/summary?search=${searchTerm}&project_id=${selectedProjectId}&type=${selectedType}`, 
+    `/finances/summary?search=${searchTerm}&project_id=${selectedProjectId}&unit_id=${selectedUnitId}&type=${selectedType}`, 
     fetcher
   );
 
@@ -104,6 +123,10 @@ export default function FinancePage() {
     try {
       const body = new FormData();
       body.append('projectId', formData.projectId.toString());
+      if (formData.unitId && formData.unitId !== 0) {
+        body.append('unitId', formData.unitId.toString());
+      }
+      body.append('name', formData.name);
       body.append('type', formData.type);
       body.append('category', formData.category);
       body.append('description', formData.description);
@@ -197,11 +220,26 @@ export default function FinancePage() {
           <select 
             className="flex-1 lg:w-48 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none"
             value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(Number(e.target.value))}
+            onChange={(e) => {
+              setSelectedProjectId(Number(e.target.value));
+              setSelectedUnitId(0);
+            }}
           >
-            <option value={0} className="dark:bg-slate-900">All Projects</option>
+            <option value={0} className="dark:bg-slate-900">{isSuperAdmin ? 'All Projects' : 'All My Villas'}</option>
             {projects?.map((p: any) => (
               <option key={p.id} value={p.id} className="dark:bg-slate-900">{p.name}</option>
+            ))}
+          </select>
+
+          <select 
+            className="flex-1 lg:w-48 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none disabled:opacity-50"
+            value={selectedUnitId}
+            disabled={!selectedProjectId}
+            onChange={(e) => setSelectedUnitId(Number(e.target.value))}
+          >
+            <option value={0} className="dark:bg-slate-900">All Units</option>
+            {unitsInFilter?.map((u: any) => (
+              <option key={u.id} value={u.id} className="dark:bg-slate-900">{u.name}</option>
             ))}
           </select>
 
@@ -225,7 +263,8 @@ export default function FinancePage() {
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800/50">
                 <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px]">Date</th>
-                <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px]">Villa & Category</th>
+                <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px]">Villa & Unit</th>
+                <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px]">Name</th>
                 <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px]">Description</th>
                 <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px] text-right">Amount</th>
                 <th className="px-8 py-6 text-slate-400 font-bold uppercase tracking-wider text-[10px] text-right">Actions</th>
@@ -251,7 +290,9 @@ export default function FinancePage() {
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex flex-col gap-1">
-                      <p className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">{t.project?.name}</p>
+                      <p className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">
+                        {t.project?.name} {t.unit ? `- ${t.unit.name}` : ''}
+                      </p>
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                         {t.category}
@@ -259,7 +300,12 @@ export default function FinancePage() {
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-1">{t.description || '-'}</p>
+                     <p className="font-bold text-xs text-slate-900 dark:text-white truncate max-w-[120px]">
+                       {t.name || '-'}
+                     </p>
+                  </td>
+                  <td className="px-8 py-6">
+                    <p className="text-xs text-slate-500 max-w-[200px] truncate" title={t.description}>{t.description || '-'}</p>
                   </td>
                   <td className="px-8 py-6 text-right whitespace-nowrap">
                     <div className={cn(
@@ -315,10 +361,14 @@ export default function FinancePage() {
                   <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center border border-slate-100 dark:border-slate-700">
                     <Calendar className="w-5 h-5 text-slate-400" />
                   </div>
-                  <div>
-                    <p className="font-bold text-sm">{new Date(t.date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{t.project?.name}</p>
-                  </div>
+                  <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                    {t.name ? t.name : t.category}
+                  </p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate">
+                    {t.project?.name} {t.unit ? `• ${t.unit.name}` : ''}
+                  </p>
+                </div>
                 </div>
                 <div className={cn(
                   "font-mono font-bold text-base",
@@ -436,21 +486,56 @@ export default function FinancePage() {
                   </div>
                 </div>
               </div>
-
+              
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest ml-1">Villa Project</label>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest ml-1">Transaction Name / Guest Name</label>
                 <div className="relative group text-slate-900 dark:text-white">
-                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
-                  <select 
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-4 py-3 text-xs focus:outline-none focus:border-amber-500 transition-colors appearance-none"
-                    value={formData.projectId}
-                    onChange={e => setFormData({...formData, projectId: Number(e.target.value)})}
-                  >
-                    <option value={0} className="dark:bg-slate-900">Select Project</option>
-                    {projects?.map((p: any) => (
-                      <option key={p.id} value={p.id} className="dark:bg-slate-900">{p.name}</option>
-                    ))}
-                  </select>
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
+                  <input 
+                    type="text" 
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-4 py-3 text-xs focus:outline-none focus:border-amber-500 transition-colors"
+                    placeholder="e.g., Guest John Doe or PLN Electricity"
+                    value={formData.name}
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest ml-1">Villa Project</label>
+                  <div className="relative group text-slate-900 dark:text-white">
+                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
+                    <select 
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-4 py-3 text-xs focus:outline-none focus:border-amber-500 transition-colors appearance-none"
+                      value={formData.projectId}
+                      onChange={e => {
+                        setFormData({...formData, projectId: Number(e.target.value), unitId: 0});
+                      }}
+                    >
+                      <option value={0} className="dark:bg-slate-900">Select Project</option>
+                      {projects?.map((p: any) => (
+                        <option key={p.id} value={p.id} className="dark:bg-slate-900">{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest ml-1">Unit (Optional)</label>
+                  <div className="relative group text-slate-900 dark:text-white">
+                    <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
+                    <select 
+                      disabled={!formData.projectId}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-4 py-3 text-xs focus:outline-none focus:border-amber-500 transition-colors appearance-none disabled:opacity-50"
+                      value={formData.unitId || 0}
+                      onChange={e => setFormData({...formData, unitId: Number(e.target.value)})}
+                    >
+                      <option value={0} className="dark:bg-slate-900">General Project</option>
+                      {unitsInModal?.map((u: any) => (
+                        <option key={u.id} value={u.id} className="dark:bg-slate-900">{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 

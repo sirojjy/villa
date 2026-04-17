@@ -1,6 +1,6 @@
-# SV Villa Management System
+# Villa Management - Pengelolaan Villa Terpadu
 
-Villa Management System adalah aplikasi web berbasis admin yang digunakan oleh PT. Shaka Jaya Properti untuk mengelola operasional multi-villa, mencakup pemesanan, keuangan, dan manajemen unit dalam satu platform terpadu.
+PT. Shaka Jaya Properti System adalah aplikasi web berbasis admin yang digunakan oleh PT. Shaka Jaya Properti untuk mengelola operasional multi-villa, mencakup pemesanan, keuangan, dan manajemen unit dalam satu platform terpadu.
 
 ## Tech Stack
 

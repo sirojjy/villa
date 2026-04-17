@@ -64,6 +64,8 @@ export const bookings = mysqlTable('bookings', {
 export const finances = mysqlTable('finances', {
   id: serial('id').primaryKey(),
   projectId: int('project_id').notNull(),
+  unitId: int('unit_id'), // Nullable for project-wide expenses
+  name: varchar('name', { length: 255 }),
   type: mysqlEnum('type', ['income', 'expense']).notNull(),
   category: varchar('category', { length: 100 }).notNull(),
   description: text('description'),
@@ -114,4 +116,5 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
 
 export const financesRelations = relations(finances, ({ one }) => ({
   project: one(projects, { fields: [finances.projectId], references: [projects.id] }),
+  unit: one(units, { fields: [finances.unitId], references: [units.id] }),
 }));

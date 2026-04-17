@@ -197,9 +197,11 @@ export const bookingRoutes = new Elysia({ prefix: '/bookings' })
         // Create financial record (Income)
         await tx.insert(finances).values({
           projectId: unit.projectId,
+          unitId: unit.id,
+          name: guestName,
           type: 'income',
           category: 'Booking',
-          description: `Booking Check-in: ${guestName} (Unit ${unit.name})`,
+          description: `${method} | ${new Date(checkIn).toLocaleDateString('id-ID')} - ${new Date(checkOut).toLocaleDateString('id-ID')}`,
           amount: total.toString() as any,
           date: new Date(),
           attachmentUrl,
