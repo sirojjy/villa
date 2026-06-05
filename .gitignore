@@ -33,3 +33,4 @@ package-lock.json
 
 # Docker
 .docker-compose.yml.swp
+docker-compose*.yml

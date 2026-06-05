@@ -42,7 +42,12 @@ export default function DashboardPage() {
   // All hooks at the top — always called in the same order
   const [mounted, setMounted] = useState(false);
   const { user: authUser } = useAuthStore();
-  const { data: res, error: swrError, isLoading } = useSWR('/dashboard/summary', fetcher);
+  const [filterProject, setFilterProject] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>(new Date().getMonth().toString());
+  const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
+
+  const { data: res, error: swrError, isLoading } = useSWR(`/dashboard/summary?projectId=${filterProject}&month=${filterMonth}&year=${filterYear}`, fetcher);
+  const { data: projectsRes } = useSWR('/projects', fetcher);
 
   useEffect(() => {
     setMounted(true);
@@ -73,7 +78,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { metrics, charts, recentActivity } = res.data;
+  const { metrics, charts, recentActivity, availableYears } = res.data;
   const isInvestor = authUser?.role === 'investor';
 
   const revenueGrowth = metrics.prevRevenue > 0 
@@ -90,9 +95,53 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div>
-        <h1 className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">Executive Dashboard</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-2">Welcome back. Monitoring real-time performance across your villas.</p>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">Executive Dashboard</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-2">Welcome back. Monitoring real-time performance across your villas.</p>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Project Filter */}
+          <select 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-700 dark:text-slate-300"
+            value={filterProject}
+            onChange={e => setFilterProject(e.target.value)}
+          >
+            <option value="all">All Projects</option>
+            {projectsRes?.data?.map((p: any) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+
+          {/* Month Filter */}
+          <select 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-700 dark:text-slate-300"
+            value={filterMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+          >
+            {Array.from({length: 12}).map((_, i) => {
+              const monthName = new Date(0, i).toLocaleString('id-ID', { month: 'long' });
+              return (
+                <option key={i} value={i}>
+                  {monthName}
+                </option>
+              );
+            })}
+          </select>
+
+          {/* Year Filter */}
+          <select 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-700 dark:text-slate-300"
+            value={filterYear}
+            onChange={e => setFilterYear(e.target.value)}
+          >
+            {(availableYears || [new Date().getFullYear()]).map((y: number) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Metric Cards */}
@@ -136,7 +185,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">Revenue Trend</h3>
-                <p className="text-slate-500 text-xs uppercase tracking-widest font-bold">Laporan Harian (14 Hari Terakhir)</p>
+                <p className="text-slate-500 text-xs uppercase tracking-widest font-bold">Laporan Harian (30 Hari Terakhir)</p>
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-400"><TrendingUp className="w-5 h-5 text-amber-500" /></div>
             </div>

@@ -15,7 +15,8 @@ import {
   ChevronRight,
   UserCircle,
   Sun,
-  Moon
+  Moon,
+  Building2
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { useTheme } from 'next-themes';
@@ -88,8 +89,8 @@ export default function Sidebar() {
         {/* Header/Logo */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-800/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <span className="text-slate-950 font-bold text-xl">SV</span>
+            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 text-slate-950">
+              <Building2 className="w-6 h-6" />
             </div>
             <div>
               <h1 className="text-slate-900 dark:text-white font-bold leading-none">Villa Management</h1>

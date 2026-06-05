@@ -50,7 +50,11 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     if (type) filters.push(eq(finances.type, type as any));
 
     if (date_from && date_to) {
-      filters.push(between(finances.date, new Date(date_from), new Date(date_to)));
+      const fromStr = date_from as string;
+      const toStr = date_to as string;
+      const fromDate = fromStr.includes('T') ? new Date(fromStr) : new Date(`${fromStr}T00:00:00`);
+      const toDate = toStr.includes('T') ? new Date(toStr) : new Date(`${toStr}T23:59:59.999`);
+      filters.push(between(finances.date, fromDate, toDate));
     }
 
     if (search) {
@@ -102,7 +106,11 @@ export const financeRoutes = new Elysia({ prefix: '/finances' })
     if (unit_id && unit_id !== '0') filters.push(eq(finances.unitId, parseInt(unit_id as string)));
     if (type) filters.push(eq(finances.type, type as any));
     if (date_from && date_to) {
-      filters.push(between(finances.date, new Date(date_from), new Date(date_to)));
+      const fromStr = date_from as string;
+      const toStr = date_to as string;
+      const fromDate = fromStr.includes('T') ? new Date(fromStr) : new Date(`${fromStr}T00:00:00`);
+      const toDate = toStr.includes('T') ? new Date(toStr) : new Date(`${toStr}T23:59:59.999`);
+      filters.push(between(finances.date, fromDate, toDate));
     }
     if (search) {
       filters.push(or(

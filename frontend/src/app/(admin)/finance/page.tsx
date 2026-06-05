@@ -45,6 +45,41 @@ export default function FinancePage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [error, setError] = useState('');
   
+  // Date Period Filter State
+  const [periodType, setPeriodType] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  const handlePeriodChange = (type: string) => {
+    setPeriodType(type);
+    const today = new Date();
+    if (type === 'all') {
+      setStartDate('');
+      setEndDate('');
+    } else if (type === 'today') {
+      const todayStr = today.toISOString().split('T')[0];
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (type === 'this_month') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setStartDate(firstDay.toISOString().split('T')[0]);
+      setEndDate(lastDay.toISOString().split('T')[0]);
+    } else if (type === 'last_30_days') {
+      const past30Days = new Date();
+      past30Days.setDate(today.getDate() - 30);
+      setStartDate(past30Days.toISOString().split('T')[0]);
+      setEndDate(today.toISOString().split('T')[0]);
+    } else if (type === 'custom') {
+      if (!startDate || !endDate) {
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        setStartDate(firstDay.toISOString().split('T')[0]);
+        setEndDate(lastDay.toISOString().split('T')[0]);
+      }
+    }
+  };
+  
   // File Preview State
   const [previewFile, setPreviewFile] = useState<{ url: string, name: string } | null>(null);
 
@@ -92,7 +127,7 @@ export default function FinancePage() {
   };
 
   const { data: finances, isLoading } = useSWR(
-    `/finances?search=${searchTerm}&project_id=${selectedProjectId}&unit_id=${selectedUnitId}&type=${selectedType}`, 
+    `/finances?search=${searchTerm}&project_id=${selectedProjectId}&unit_id=${selectedUnitId}&type=${selectedType}&date_from=${startDate}&date_to=${endDate}`, 
     fetcher
   );
   
@@ -106,7 +141,7 @@ export default function FinancePage() {
     fetcher
   );
   const { data: summary } = useSWR(
-    `/finances/summary?search=${searchTerm}&project_id=${selectedProjectId}&unit_id=${selectedUnitId}&type=${selectedType}`, 
+    `/finances/summary?search=${searchTerm}&project_id=${selectedProjectId}&unit_id=${selectedUnitId}&type=${selectedType}&date_from=${startDate}&date_to=${endDate}`, 
     fetcher
   );
 
@@ -216,9 +251,45 @@ export default function FinancePage() {
           />
         </div>
         
-        <div className="flex flex-wrap md:flex-nowrap gap-4 w-full lg:w-auto">
+        <div className="flex flex-wrap gap-4 w-full lg:w-auto items-center">
           <select 
-            className="flex-1 lg:w-48 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none"
+            className="flex-1 lg:w-40 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none"
+            value={periodType}
+            onChange={(e) => handlePeriodChange(e.target.value)}
+          >
+            <option value="all" className="dark:bg-slate-900">Semua Periode</option>
+            <option value="today" className="dark:bg-slate-900">Hari Ini</option>
+            <option value="this_month" className="dark:bg-slate-900">Bulan Ini</option>
+            <option value="last_30_days" className="dark:bg-slate-900">30 Hari Terakhir</option>
+            <option value="custom" className="dark:bg-slate-900">Kustom Tanggal</option>
+          </select>
+
+          {periodType === 'custom' && (
+            <div className="flex items-center gap-2 w-full sm:w-auto animate-in slide-in-from-left duration-200">
+              <div className="relative flex-1 sm:flex-none">
+                <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input 
+                  type="date" 
+                  className="w-full sm:w-36 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl pl-10 pr-3 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <span className="text-slate-400 text-xs font-semibold">s/d</span>
+              <div className="relative flex-1 sm:flex-none">
+                <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input 
+                  type="date" 
+                  className="w-full sm:w-36 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl pl-10 pr-3 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <select 
+            className="flex-1 lg:w-40 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none"
             value={selectedProjectId}
             onChange={(e) => {
               setSelectedProjectId(Number(e.target.value));
@@ -232,7 +303,7 @@ export default function FinancePage() {
           </select>
 
           <select 
-            className="flex-1 lg:w-48 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none disabled:opacity-50"
+            className="flex-1 lg:w-40 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none disabled:opacity-50"
             value={selectedUnitId}
             disabled={!selectedProjectId}
             onChange={(e) => setSelectedUnitId(Number(e.target.value))}
@@ -244,7 +315,7 @@ export default function FinancePage() {
           </select>
 
           <select 
-            className="flex-1 lg:w-48 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none"
+            className="flex-1 lg:w-40 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 transition-all text-sm appearance-none"
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
           >
